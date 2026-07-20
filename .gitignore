@@ -1,0 +1,7 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+material-spec-input/
+material-spec-output/
+同事使用说明.md
+scripts/export-clean-skill.mjs

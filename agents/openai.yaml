@@ -1,0 +1,3 @@
+display_name: Material Spec Dispatcher
+short_description: Choose source-title migration or standard template copy for material images.
+default_prompt: 上传图片后，根据图内是否有主副标题，选择原图迁移或文字模板流程。

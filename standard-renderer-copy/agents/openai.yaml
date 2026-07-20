@@ -1,0 +1,3 @@
+display_name: Standard Material Renderer
+short_description: Generate standard resource PNGs with renderer-drawn title, subtitle, and CTA.
+default_prompt: 使用文字模板：清除参考图主副标题后，按资源位规则生成安全底图，并由 renderer 绘制标题、副标题和 CTA。
