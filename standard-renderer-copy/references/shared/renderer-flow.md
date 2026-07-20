@@ -53,16 +53,16 @@ Use `--template categoryBanner` and output `categoryBanner.png` for a generated 
 
 ## No-main-copy Ratio-routed Inputs
 
-Use this path only when the uploaded image has no discernible main title/subtitle, the user has supplied text versions of both, and `python3 scripts/match-resource-size.py --image <image-path>` prints `MATCH`. The direct routes are `3:4` to `feed`, `1:1` to `popup`, `9:16` to `splash`, `1041:225` (about `4.63:1`) to `channel`, and exact `1041:217` to `categoryBanner`. Any matched image that contains either discernible title must not directly route; generate a title-cleaned template-safe background first.
+Use this path only when the uploaded image has no discernible main title/subtitle and the user has supplied text versions of both. A vertical direct input must already be a complete usable `9:16` opening-screen background with a continuous copy-safe area; it is then the vertical master for one or more requested `feed`, `popup`, and `splash` outputs. A transparent/white/pure-color product source, product group, or ordinary scene source is not a direct background and must first follow `标准文字套版` generation. `1041:225` (about `4.63:1`) routes to `channel`, and exact `1041:217` routes to `categoryBanner`. Any matched image that contains either discernible title must not directly route; generate a title-cleaned template-safe background first.
 
 - Ask for title and subtitle before rendering when they are missing; do not use placeholder/default campaign copy.
-- Put the original input image in the task folder and map it to the matched resource in `material.json`.
-- Run that resource's renderer directly. Do not run AI image generation. For `feed`, `popup`, and `splash`, do not pre-crop locally; the renderer applies its normal cover crop. `channel` and `categoryBanner` use their already-matched horizontal input directly, without additional local cropping.
-- If the command prints `NO_MATCH`, do not use this path. Ask for title/subtitle, then generate a template-safe background with only the original main title/subtitle cleared using the matching resource's specified generation canvas or fixed ratio, then render.
+- Put the original input image in the task folder. For a `9:16` vertical master, map that same filename to every requested `feed`, `popup`, and `splash` resource, measure the complete core-subject vertical center, and write it as `verticalMaster.subjectCenterY` in `material.json`.
+- Run the requested renderer templates directly. Do not run AI image generation. For a vertical master, do not pre-crop locally; renderer derives every final crop from `verticalMaster.subjectCenterY`. `channel` and `categoryBanner` use their already-matched horizontal input directly, without additional local cropping.
+- If the command prints `NO_MATCH`, do not use this path. Ask for title/subtitle, then generate a template-safe background using the matching resource's specified generation canvas or fixed ratio, then render.
 
 ## Fixed-ratio Generated Backgrounds
 
-This section applies to standalone AI-generated backgrounds and direct ratio-routed inputs for `feed`, `popup`, and `splash`. A vertical-master combination uses the next section instead.
+This section applies to standalone AI-generated backgrounds for `feed`, `popup`, and `splash`. A vertical-master combination, including a direct no-main-copy `9:16` input, uses the next section instead.
 
 - Generate `feed` at `3:4`, `popup` at `1:1`, and `splash` at `9:16`.
 - The renderer uses its normal centered cover crop to fit these generated backgrounds to the final template dimensions. Do not pre-crop a generated background to the final size.
@@ -70,7 +70,7 @@ This section applies to standalone AI-generated backgrounds and direct ratio-rou
 
 ## Vertical-master Combination: feed / popup / splash
 
-For a request that contains at least two of `feed`, `popup`, and `splash`, generate one `9:16` template-safe vertical master instead of generating separate `3:4`, `1:1`, and `9:16` backgrounds. This mode is limited to those three vertical templates; it does not apply to horizontal resources.
+For a request that contains at least two of `feed`, `popup`, and `splash`, generate one `9:16` template-safe vertical master instead of generating separate `3:4`, `1:1`, and `9:16` backgrounds. A no-title `标准文字套版` source also uses this mode, including when it requests only one vertical output. A direct no-main-copy `9:16` input uses this mode for any requested vertical-resource combination. This mode is limited to those three vertical templates; it does not apply to horizontal resources.
 
 1. Generate one master candidate at `9:16`, with the source title/subtitle cleared and a common, continuous copy-safe area large enough for every requested final crop.
 2. Measure the complete core-subject group's vertical center in the master image and record it as normalized `verticalMaster.subjectCenterY` (`0` is the top; `1` is the bottom).

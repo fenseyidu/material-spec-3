@@ -33,8 +33,9 @@ If the user asks what this skill can do, how to use it, or what prompt to send, 
 标题/副标题颜色：自动（默认）
 补充要求：（可空）
 
-已有安全底图时，使用相同字段：
+已有无标题开屏底图时，使用以下字段：
 
+生成：feed / 弹窗 / 开屏
 标题：
 副标题：
 标题/副标题颜色：自动（默认）
@@ -78,9 +79,11 @@ When the user provides an image, inspect it before creating a task folder or ask
 
      Do not ask this confirmation when the mapping is unambiguous.
    - After confirmation when required, or immediately when unambiguous, use the resolved copy as renderer copy. Generate a template-safe background with only the resolved original main title/subtitle and their attached visual carriers removed before renderer; preserve all other in-image text and its carrier.
-2. If the image has no discernible main title or subtitle, run `python3 scripts/match-resource-size.py --image <image-path>`.
-   - On `MATCH`, use the matched resource template directly only after the user has provided text versions of both the title and subtitle. `3:4` routes to `feed`, `1:1` to `popup`, `9:16` to `splash`, `1041:225` (about `4.63:1`) to `channel`, and the exact `1041:217` to `categoryBanner`. Any matched image that contains either discernible title must follow the title-cleanup generation path, not direct rendering. The input need not have the final output pixel dimensions for `feed`, `popup`, or `splash`: the renderer cover-crops it to the selected template. Direct `channel` and `categoryBanner` inputs must match their supported horizontal ratio or exact final size. If the user named a different resource, ask which resource they intend before proceeding.
-   - On `NO_MATCH`, ask the user for a resource, title, and subtitle when any of them are missing. After they provide them, generate a template-safe background with only the original main title/subtitle cleared for every requested resource, then render the supplied copy.
+2. If the image has no discernible main title or subtitle, first classify it before creating a task folder:
+   - **底图套版**: use direct rendering only when the image is an already-complete `9:16` opening-screen background with a continuous usable copy-safe area, plus no title/subtitle. Require the user to name one or more of `feed`, `popup`, and `splash`; map that same source image to every requested vertical resource and derive each final crop from its measured `verticalMaster.subjectCenterY`.
+   - **标准文字套版**: use this route for a transparent cutout, white/pure-color product image, product group, or ordinary scene image that is not already a complete usable opening-screen background, at any source ratio. Require the user to provide a title, subtitle, and requested vertical resources. Generate one `9:16` title-free opening-screen master, then map it to every requested `feed`, `popup`, and `splash` renderer output. Do not treat a white/transparent/isolated-product image as a direct-render background merely because it is `9:16`.
+   - For direct horizontal routes only, run `python3 scripts/match-resource-size.py --image <image-path>`. `1041:225` (about `4.63:1`) routes to `channel`, and the exact `1041:217` routes to `categoryBanner`. Any matched image that contains either discernible title must follow the title-cleanup generation path, not direct rendering. Direct horizontal inputs must match their supported ratio or exact final size. If the user names a resource outside the matched route, ask which route they intend before proceeding.
+   - When the source does not meet a direct route and is not a standard-text-template request, ask the user for a resource, title, and subtitle when any are missing; then generate a template-safe background for every requested resource and render the supplied copy.
 3. Do not infer campaign copy when the original main title/subtitle are absent. A ratio match removes only the image-generation step, never the need for title/subtitle.
 
 ## Shared Flow Files
@@ -106,11 +109,12 @@ Agent must explicitly state which resource file and shared files were applied be
 - Common reference-image, text cleanup, QA timing, renderer, and delivery rules live in `references/shared/*.md`.
 - The bundled renderer owns final text rendering, CTA drawing, typography, rounded corners, dimensions, and technical output validation. Do not duplicate or override renderer implementation details in resource rules.
 - A material request defaults to the original-image background, CTA `点击查看`, automatic title/subtitle color, and template fonts. When the reference has no effective environmental background (for example, a transparent cutout, a flat single-color background, or an isolated product on black/white), default the background expression to `极简光影底`: preserve the product and introduce only subtle, low-saturation light, gradient, or ground reflection drawn from the product's own colors. A user-specified background expression always takes precedence. Resolve automatic title/subtitle color with `references/shared/copy-safety.md` before background generation; write the resolved hex colors to `material.json` before renderer.
-- Use the Input Routing rules for every uploaded image. The presence of in-image copy controls whether copy is extracted; a no-main-copy ratio match controls only whether AI image generation is skipped.
+- In the no-title branch, `标准文字套版` and `底图套版` are distinct: standard text templating generates a `9:16` opening-screen master from ordinary product/source imagery before renderer; background templating uses an already-complete `9:16` opening-screen background directly. Keep the existing title-bearing standard-text-template flow unchanged.
+- Use the Input Routing rules for every uploaded image. The presence of in-image copy controls whether copy is extracted; only a completed no-title `9:16` opening-screen background skips AI image generation for vertical resources.
 - For `feed` and `popup`, CTA colors are renderer-fixed from the resolved title color: deep/black title uses the same deep/black button background with white CTA text; white title uses the same white button background with deep CTA text. Do not set `buttonBackground` or `buttonTextColor` in `material.json`, and do not accept a CTA-color override. For these two resources, title color must resolve to the template deep/black (`#111111` or black equivalent) or white (`#FFFFFF`).
 - When one request contains at least two of `feed`, `popup`, and `splash`, use one shared `9:16` vertical master instead of separate generated backgrounds. Measure the master core-subject vertical center, write it as `verticalMaster.subjectCenterY` in `material.json`, and let renderer derive each final crop. Run Pre-render QA separately on every requested final crop; an explicit resource `backgroundPosition` is an exception-only override.
-- Do not use the original reference image itself as renderer input unless the Input Routing rules report a ratio-routed image with no original main title/subtitle and the user has supplied text title/subtitle, or the user explicitly says `直接裁切原图套版`, `不生图，只裁切`, `允许本地兜底`, or equivalent.
-- For a request with a reference image, AI image-to-image generation is required before renderer except on the Input Routing ratio-routed, no-main-copy path. If generation fails or returns no usable candidate, stop before crop, cleanup, `material.json`, and renderer.
+- Do not use the original reference image itself as renderer input unless Input Routing identifies it as a completed no-title `9:16` opening-screen background and the user has supplied text title/subtitle, or the user explicitly says `直接裁切原图套版`, `不生图，只裁切`, `允许本地兜底`, or equivalent.
+- For a request with a reference image, AI image-to-image generation is required before renderer except on the Input Routing `底图套版` path. If generation fails or returns no usable candidate, stop before crop, cleanup, `material.json`, and renderer.
 - Before the first local PNG render, check renderer dependencies with `python3 scripts/setup-check.py`. The renderer uses Python/Pillow and the parent package's shared Alimama ShuHeiTi for main titles plus Alibaba PuHuiTi for subtitles and buttons; it does not require Node.js, npm, Chrome, or Playwright.
 - Create every task input folder and output group in the external project workspace, never under the skill directory. The renderer redirects any mistakenly supplied in-skill work path to the skill's parent workspace.
 - Default QA is fast QA: Pre-render QA after generation and Render QA after renderer. Do not generate report artifacts by default. Only read `references/shared/reporting-flow.md` and create reports when the user explicitly asks to generate a report.
@@ -130,7 +134,7 @@ When the user provides or references an image and specifies `资源位`, treat i
    - `标题`
    - `副标题`
    - optional title/subtitle colors (`自动` when omitted) and supplementary requirements, including a non-default background, CTA copy, or fonts
-   - inspect the uploaded image with Input Routing before requesting missing copy or choosing the renderer path
+   - inspect the uploaded image with Input Routing before requesting missing copy or choosing the renderer path; for a no-title standard-text-template source, use the user-supplied title/subtitle and do not infer campaign copy from the image
 2. Read `references/shared/naming-rules.md`.
 3. Read the matching `references/resources/<resource>.md` for every requested resource.
 4. Create a new task-specific folder name from timestamp/theme/resources.
@@ -144,6 +148,7 @@ When the user provides or references an image and specifies `资源位`, treat i
 7. Generate separate template-safe backgrounds with only the original main title/subtitle cleared per requested resource, except for documented shared-image groups:
    - when both `channel` and `categoryBanner` are requested, generate one shared horizontal work image from the `channel` rules and use it for both resources; do not generate a second horizontal candidate for `categoryBanner`.
    - when the request contains at least two of `feed`, `popup`, and `splash`, generate one shared `9:16` vertical master from the splash rules; map that same candidate to every requested vertical resource, measure its complete core-subject vertical center, and write `verticalMaster.subjectCenterY` for renderer crop derivation.
+   - when the Input Routing result is a no-title `标准文字套版`, generate one shared `9:16` vertical master from the splash rules even when only one vertical resource was requested; map it to every requested vertical resource, measure its complete core-subject vertical center, and write `verticalMaster.subjectCenterY` for renderer crop derivation.
 8. On the AI-generation path, if generation fails or produces no usable candidate:
    - do not crop
    - do not create `material.json`
@@ -173,22 +178,22 @@ Correct production path:
 ```text
 image inspection
 -> has title/subtitle: extract copy -> clear only original main title/subtitle -> renderer
--> no original main title/subtitle + supported resource ratio + supplied text copy: direct renderer
--> no original main title/subtitle + no size match: request copy -> clear only original main title/subtitle -> renderer
+-> no original main title/subtitle + completed 9:16 opening-screen background + supplied text copy: direct renderer
+-> no original main title/subtitle + ordinary product/source image: generate 9:16 opening-screen master -> renderer
 ```
 
 ## Production Flow: Existing Backgrounds
 
-When the user provides existing template-safe backgrounds and asks only to套版, resource names are optional:
+When the user provides an existing template-safe background and asks only to套版:
 
-1. Inspect each image for a discernible main title/subtitle before treating it as an existing template-safe background. A matched image can use direct rendering only when it has no discernible in-image main title/subtitle and the user has supplied text versions of both. If an image contains either discernible title, do not directly套版; route it through Input Routing's title-cleanup generation path.
-2. Run `python3 scripts/match-resource-size.py --image <image-path>` for each eligible background. Route `3:4` to `feed`, `1:1` to `popup`, `9:16` to `splash`, `1041:225` (about `4.63:1`) to `channel`, and the exact `1041:217` to `categoryBanner`. Do not require final output pixel dimensions for `feed`, `popup`, or `splash`.
-3. Read `references/shared/naming-rules.md` and the matched `references/resources/<resource>.md`. If the user names a different resource, ask which route they intend.
+1. Inspect each image for a discernible main title/subtitle before treating it as an existing template-safe background. A vertical image can use direct rendering only when it is an already-complete `9:16` opening-screen background with no discernible title/subtitle and a usable continuous copy-safe area, and the user has supplied text versions of both. If the no-title image is a transparent/white/pure-color product source, product group, or ordinary scene rather than a finished opening-screen background, route it through Input Routing's no-title `标准文字套版` generation path. If an image contains either discernible title, do not directly套版; route it through Input Routing's title-cleanup generation path.
+2. For an eligible `9:16` vertical background, require the requested output list from `feed`, `popup`, and `splash`, then use that one image as the shared vertical master for all listed outputs. For direct horizontal backgrounds, run `python3 scripts/match-resource-size.py --image <image-path>`; `1041:225` (about `4.63:1`) routes to `channel`, and the exact `1041:217` routes to `categoryBanner`.
+3. Read `references/shared/naming-rules.md` and every matching `references/resources/<resource>.md`. For a vertical master, read each requested feed/popup/splash resource rule and derive every final crop from the same image.
 4. Read `references/shared/renderer-flow.md`.
 5. Run the first-use dependency check before renderer, and install Pillow if missing and permission is available.
 6. Resolve automatic title/subtitle color from the actual copy-safe area with `references/shared/copy-safety.md`.
 7. Create a new task-specific input folder unless the user explicitly names an existing one to update.
-8. Put backgrounds and `material.json` in that folder, using resolved hex colors rather than literal `auto`; write `qaSchemaVersion: 4`, include `centeringMeasurement` for any requested `feed`, `popup`, or `splash`, and include `fitMeasurement` plus `mainVisualFits` for `feed` or `popup`. A `feed` or `popup` retry must also retain `targetedRetryCount: 1` and its `retryPlan`.
+8. Put backgrounds and `material.json` in that folder, using resolved hex colors rather than literal `auto`; for a `9:16` vertical master, map the same filename to every requested vertical resource and write its measured `verticalMaster.subjectCenterY`; write `qaSchemaVersion: 4`, include `centeringMeasurement` for any requested `feed`, `popup`, or `splash`, and include `fitMeasurement` plus `mainVisualFits` for `feed` or `popup`. A `feed` or `popup` retry must also retain `targetedRetryCount: 1` and its `retryPlan`.
 9. Run renderer.
 10. Run Render QA and `references/shared/final-checklist.md`.
 11. Return final paths and Render QA.

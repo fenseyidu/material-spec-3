@@ -18,8 +18,6 @@ EXACT_SIZES = {
 
 RATIO_ROUTES = (
     ("channel", 1041 / 225, "4.63:1"),
-    ("feed", 3 / 4, "3:4"),
-    ("popup", 1, "1:1"),
     ("splash", 9 / 16, "9:16"),
 )
 RATIO_TOLERANCE = 0.01

@@ -14,7 +14,7 @@ Use this file when the requested resource is `popup` or `弹窗`.
 ## Generation Layout
 
 - For a standalone popup task, always generate exactly at `1:1`; do not follow the reference image's aspect ratio. Apply the naturally blended title/subtitle safety zone and CTA avoidance zone defined below before placing the centered main visual block.
-- For a vertical-master combination with at least one of `feed` or `splash`, do not generate a separate popup background. Use the shared `9:16` master and judge this popup's layout against its derived final renderer crop.
+- For a vertical-master combination with at least one of `feed` or `splash`, or for a no-title `标准文字套版` source, do not generate a separate popup background. Use the shared `9:16` master and judge this popup's layout against its derived final renderer crop.
 
 ## Initial Generation Prompt
 

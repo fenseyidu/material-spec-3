@@ -14,7 +14,7 @@ Use this file when the requested resource is `feed` or `Feed`.
 ## Generation Layout
 
 - For a standalone feed task, always generate exactly at `3:4`; do not follow the reference image's aspect ratio. Apply the naturally blended title/subtitle safety zone and CTA avoidance zone defined below before placing the centered main visual block.
-- For a vertical-master combination with at least one of `popup` or `splash`, do not generate a separate feed background. Use the shared `9:16` master and judge this feed's layout against its derived final renderer crop.
+- For a vertical-master combination with at least one of `popup` or `splash`, or for a no-title `标准文字套版` source, do not generate a separate feed background. Use the shared `9:16` master and judge this feed's layout against its derived final renderer crop.
 
 ## Initial Generation Prompt
 
