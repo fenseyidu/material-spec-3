@@ -27,6 +27,8 @@ work image y 55%-100%   effective material area
 - Do not let the subject stick to the far right edge or leave large empty space in the main visual area.
 - Keep the subject clearly below the 55% boundary and anchored near the lower display band.
 
+When a core subject crosses the first-generation white buffer, use the same continuous-background recovery as `channel`: fill the upper area with natural scene background, measure the complete main visual group as normalized `left,top,right,bottom` bounds, and center the final crop vertically on that group.
+
 ## Shared Background
 
 When the same task requests both `channel` and `categoryBanner`, reuse the single horizontal template-safe work image generated with the `channel` rules. Do not generate a separate `categoryBanner` background. Run `prepare-channel-input.py` twice against that shared work image, once with `--template channel` and once with `--template categoryBanner`.
@@ -54,7 +56,7 @@ FAIL when:
 - Core subject content enters copySafe.
 - The right-side main visual area is visually empty or the subject is stuck at the far right edge.
 
-Default fast flow: try at most one targeted regeneration for boundary/layout issues. If the usable retry still fails, render with `RENDER_WITH_OBSERVATION` and state the concrete remaining issue.
+Default fast flow: try at most one targeted regeneration for boundary/layout issues. If the continuous-background retry still has a crop or balance issue, render with `RENDER_WITH_OBSERVATION` and state the concrete remaining issue.
 
 ## Renderer Preparation
 
@@ -68,3 +70,5 @@ python3 <skill-dir>/scripts/prepare-channel-input.py \
 ```
 
 Do not send the full buffered work image to renderer. A direct no-main-copy input at the exact `1041 x 217` Banner size bypasses this preparation.
+
+For a continuous-background recovery candidate, add `--main-visual-bounds <left,top,right,bottom>` to the same command. The preprocessor uses those QA-measured bounds rather than a white boundary.

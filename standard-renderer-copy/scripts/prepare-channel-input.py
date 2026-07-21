@@ -17,8 +17,25 @@ def parse_args():
     parser.add_argument("--input", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--template", choices=TEMPLATES, default="channel")
+    parser.add_argument(
+        "--main-visual-bounds",
+        help="Normalized left,top,right,bottom bounds measured during visual QA. "
+        "Uses the main visual's vertical center instead of a white-buffer boundary.",
+    )
     parser.add_argument("--step", type=int, default=2)
     return parser.parse_args()
+
+
+def parse_main_visual_bounds(value):
+    if not value:
+        return None
+    try:
+        left, top, right, bottom = (float(item.strip()) for item in value.split(","))
+    except ValueError as error:
+        raise SystemExit("--main-visual-bounds must be left,top,right,bottom.") from error
+    if not 0 <= left < right <= 1 or not 0 <= top < bottom <= 1:
+        raise SystemExit("--main-visual-bounds values must be normalized numbers between 0 and 1.")
+    return left, top, right, bottom
 
 
 def luma(pixel):
@@ -106,6 +123,16 @@ def choose_top(image, crop_height, content_y, step):
     return top, subject_center
 
 
+def choose_top_from_main_visual_bounds(image, crop_left, crop_width, crop_height, bounds):
+    left, top, right, bottom = bounds
+    subject_left, subject_top = round(left * image.width), round(top * image.height)
+    subject_right, subject_bottom = round(right * image.width), round(bottom * image.height)
+    subject_center = (subject_top + subject_bottom) / 2
+    target_top = round(subject_center - crop_height / 2)
+    top = max(0, min(target_top, image.height - crop_height))
+    return top, subject_center
+
+
 def main():
     args = parse_args()
     source = Path(args.input)
@@ -115,16 +142,23 @@ def main():
     width, height = TEMPLATES[args.template]
     image = ImageOps.exif_transpose(Image.open(source)).convert("RGBA")
     left, crop_width, crop_height = crop_geometry(image.width, image.height, width, height)
-    content_y = first_content_y(image)
-    if args.template == "channel":
-        boundary_y = channel_boundary_y(image)
-        bounds = subject_bounds(image)
-        if boundary_y is None:
-            raise SystemExit("Channel requires a sustained full-width blank/content boundary.")
-        if bounds and bounds[0] < boundary_y:
-            raise SystemExit("Channel main visual protrudes above the horizontal blank/content boundary.")
-        content_y = boundary_y
-    top, subject_center = choose_top(image, crop_height, content_y, args.step)
+    main_visual_bounds = parse_main_visual_bounds(args.main_visual_bounds)
+    if main_visual_bounds:
+        content_y = "main-visual-center"
+        top, subject_center = choose_top_from_main_visual_bounds(
+            image, left, crop_width, crop_height, main_visual_bounds
+        )
+    else:
+        content_y = first_content_y(image)
+        if args.template == "channel":
+            boundary_y = channel_boundary_y(image)
+            bounds = subject_bounds(image)
+            if boundary_y is None:
+                raise SystemExit("Channel requires a sustained full-width blank/content boundary or --main-visual-bounds.")
+            if bounds and bounds[0] < boundary_y:
+                raise SystemExit("Channel main visual protrudes above the horizontal blank/content boundary. Use continuous-background recovery with --main-visual-bounds.")
+            content_y = boundary_y
+        top, subject_center = choose_top(image, crop_height, content_y, args.step)
     output = image.crop((left, top, left + crop_width, top + crop_height))
     output = output.resize((width, height), Image.Resampling.LANCZOS)
     target.parent.mkdir(parents=True, exist_ok=True)

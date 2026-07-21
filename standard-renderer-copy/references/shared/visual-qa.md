@@ -18,7 +18,11 @@ generated candidate
 
 ## Pre-render QA
 
-Run after each generated background and before crop, `material.json`, renderer input, or renderer. `channel` is the exception: its Pre-render QA is advisory and does not block the channel preprocessor, `material.json`, or renderer.
+Run after each generated background and before crop, `material.json`, renderer input, or renderer. For `channel`, only non-severing balance observations are advisory; the horizontal no-severing gate below always blocks renderer.
+
+### Horizontal no-severing gate
+
+For `channel` and `categoryBanner`, a main visual crossing the first-generation white-buffer boundary requires one targeted retry. Replace the white buffer with continuous scene background, visually measure the complete main-visual group as normalized `left,top,right,bottom`, and invoke `prepare-channel-input.py --main-visual-bounds <left,top,right,bottom>`. The script centers the crop on that group's vertical center and never uses pixel white to locate the recovery crop. After that one retry, any remaining crop or balance issue is a `RENDER_WITH_OBSERVATION` record with concrete evidence, then renderer continues.
 
 Before rendering, write the completed result into `material.json.preRenderQA.<resource>` using the required check keys and a concrete `evidence` observation from `references/shared/renderer-flow.md`. This is a required render gate, not a report artifact.
 
@@ -46,7 +50,7 @@ For `feed`, `popup`, and `splash`, measure the complete in-frame silhouette, inc
 
 `mainVisualCentered` applies only to `feed`, `popup`, and `splash`. It does not apply to `channel`, `categoryBanner`, or `push`.
 
-Before deciding this check, inspect the actual final renderer crop and identify the actual core subject group. For a vertical-master combination, first derive the crop from `verticalMaster.subjectCenterY`, unless an explicit `backgroundPosition` overrides it. Exclude title/subtitle/CTA, scenery, light effects, shadows, and non-core decoration. Measure the outer bounds of the core subject group in normalized final-frame coordinates (`0` to `1`) and calculate its center.
+Before deciding this check, inspect the actual final renderer crop and identify the actual core subject group. For a vertical master, first derive the crop from `verticalMaster.subjectCenterY`, unless an explicit `backgroundPosition` overrides it. Exclude title/subtitle/CTA, scenery, light effects, shadows, and non-core decoration. Measure the outer bounds of the core subject group in normalized final-frame coordinates (`0` to `1`) and calculate its center.
 
 For `qaSchemaVersion: 4`, use these canonical main-visual blocks for every centering, fit, title-safety, and retry-direction decision. Do not substitute a copy-box edge, CTA top edge, or raw generation-canvas coordinate.
 
@@ -128,7 +132,7 @@ Write this record for `feed` and `popup`:
 
 The renderer derives the fixed safe bounds, verifies the pixel math, and requires `checks.mainVisualFits` to agree. A value below `97` means the candidate needs a targeted regeneration with scaling.
 
-For standalone `feed`, `popup`, and `splash`, or when deliberately overriding vertical-master cropping, if the only issue is mild vertical crop placement, write one of these values into that resource's `backgroundPosition` before rendering:
+For a vertical master, when deliberately overriding its automatic crop placement because the only issue is mild vertical placement, write one of these values into that resource's `backgroundPosition` before rendering:
 
 - `center 44%`: subject is slightly high; move image content slightly down.
 - `center 50%`: default.
@@ -168,7 +172,7 @@ A targeted retry edits the failed candidate image. Inspect that candidate agains
 The image-generation prompt contains this single sentence:
 
 ```text
-<从实际图中判断出的动作>，使<实际核心主体><目的>；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；画面中其他元素不变。
+<从实际图中判断出的动作>，使<实际核心主体><目的>；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；保持主体组原有构图关系不变：画面中其他元素不变。
 ```
 
 The sentence contains the correction supported by the current candidate, the actual core subject, the intended result, and the preservation clauses.
@@ -209,8 +213,8 @@ This decision sequence does not apply to `splash`, which currently has no bottom
 Build the sentence from the action supported by the current candidate. Combine horizontal and vertical actions when both measured displacements are present. Only scaling receives a numerical magnitude; movement receives directions only. For `feed`, `popup`, and `splash`, use this form, replacing `<anchor>` with the resource's concrete top anchor:
 
 ```text
-将<实际核心主体>作为一个整体主体组向<needed direction(s)>移动，使该主体组的最高有效点稳定落在距画面顶部约<anchor>%的位置，并在画面水平方向居中；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；画面中其他元素不变。
-将<实际核心主体>缩小至原尺寸的<targetScalePercent>%后，作为一个整体主体组向<needed direction(s)>移动，使该主体组的最高有效点稳定落在距画面顶部约<anchor>%的位置，并在画面水平方向居中；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；画面中其他元素不变。
+将<实际核心主体>作为一个整体主体组向<needed direction(s)>移动，使该主体组的最高有效点稳定落在距画面顶部约<anchor>%的位置，并在画面水平方向居中；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；保持主体组原有构图关系不变：画面中其他元素不变。
+将<实际核心主体>缩小至原尺寸的<targetScalePercent>%后，作为一个整体主体组向<needed direction(s)>移动，使该主体组的最高有效点稳定落在距画面顶部约<anchor>%的位置，并在画面水平方向居中；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；保持主体组原有构图关系不变：画面中其他元素不变。
 ```
 
 Use the second form whenever the measured scale is below `97`. The safety interval remains a QA-only rule; do not restate it in the prompt.
@@ -229,7 +233,7 @@ For schema version `4`, write this audit shape after any `feed` or `popup` retry
     },
     "targetScalePercent": 90,
     "actions": ["scale:90", "left", "down"],
-    "prompt": "将两把吉他缩小至原尺寸的90%后，作为一个整体主体组向左、向下移动，使该主体组的最高有效点稳定落在距画面顶部约28%的位置，并在画面水平方向居中；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；画面中其他元素不变。"
+    "prompt": "将两把吉他缩小至原尺寸的90%后，作为一个整体主体组向左、向下移动，使该主体组的最高有效点稳定落在距画面顶部约28%的位置，并在画面水平方向居中；主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；保持主体组原有构图关系不变：画面中其他元素不变。"
   }
 }
 ```

@@ -1,6 +1,6 @@
 # Renderer Flow
 
-Use this after Pre-render QA passes or is marked `RENDER_WITH_OBSERVATION` following its single targeted retry. For `channel`, use it after advisory Pre-render QA whether it passes or fails.
+Use this after Pre-render QA passes or is marked `RENDER_WITH_OBSERVATION` following its single targeted retry. For `channel`, `ADVISORY_FAIL` remains available for a non-retry observation.
 
 ## Renderer
 
@@ -51,6 +51,8 @@ python3 <skill-dir>/scripts/prepare-channel-input.py \
 
 Use `--template categoryBanner` and output `categoryBanner.png` for a generated Banner candidate. Do not send a buffered horizontal work image directly to renderer. When both horizontal resources are requested, pass the same shared AI-generated work image to these two preprocessor calls; do not generate or prepare a second Banner candidate. For `channel`, the preprocessor uses the sustained full-width blank/content boundary rather than the first isolated non-white pixel, and rejects a main visual that protrudes above the boundary. It then targets vertical centering of the detected right-side core subject group in the final crop. A no-main-copy image that routes to `channel` at the supported `1041:225` (about `4.63:1`) ratio, or to `categoryBanner` at the exact `1041:217` size, is already renderer-ready and bypasses the preprocessor.
 
+When visual QA marks a white-buffer crossing, do not render with that first candidate. Its one targeted retry uses continuous-background recovery: visually measure the complete main visual as normalized `left,top,right,bottom`, then run the same preprocessor with `--main-visual-bounds <left,top,right,bottom>`. This uses the measured vertical center to select the crop. If that retry still has a crop or balance issue, write `RENDER_WITH_OBSERVATION` and continue to renderer.
+
 ## No-main-copy Ratio-routed Inputs
 
 Use this path only when the uploaded image has no discernible main title/subtitle and the user has supplied text versions of both. A vertical direct input must already be a complete usable `9:16` opening-screen background with a continuous copy-safe area; it is then the vertical master for one or more requested `feed`, `popup`, and `splash` outputs. A transparent/white/pure-color product source, product group, or ordinary scene source is not a direct background and must first follow `标准文字套版` generation. `1041:225` (about `4.63:1`) routes to `channel`, exact `1041:217` routes to `categoryBanner`, and `1035:390` within 1% ratio tolerance routes to `push`. A Push ratio match is renderer-ready without user confirmation. Any matched image that contains either discernible title must not directly route; generate a title-cleaned template-safe background first.
@@ -60,17 +62,9 @@ Use this path only when the uploaded image has no discernible main title/subtitl
 - Run the requested renderer templates directly. Do not run AI image generation. For a vertical master, do not pre-crop locally; renderer derives every final crop from `verticalMaster.subjectCenterY`. `channel`, `categoryBanner`, and ratio-matched `push` direct inputs use their uploaded horizontal image directly, without additional local cropping.
 - If the command prints `NO_MATCH`, do not use this path. Ask for title/subtitle, then generate a template-safe background using the matching resource's specified generation canvas or fixed ratio, then render.
 
-## Fixed-ratio Generated Backgrounds
+## Vertical-master Generation: feed / popup / splash
 
-This section applies to standalone AI-generated backgrounds for `feed`, `popup`, and `splash`. A vertical-master combination, including a direct no-main-copy `9:16` input, uses the next section instead.
-
-- Generate `feed` at `3:4`, `popup` at `1:1`, and `splash` at `9:16`.
-- The renderer uses its normal centered cover crop to fit these generated backgrounds to the final template dimensions. Do not pre-crop a generated background to the final size.
-- During Pre-render QA, assess title, subtitle, and CTA safety against that expected final crop. The documented lower-edge tolerance is for QA acceptance only, not an expansion of the layout. During Render QA, confirm that `feed` and `popup` keep subject content out of the CTA itself.
-
-## Vertical-master Combination: feed / popup / splash
-
-For a request that contains at least two of `feed`, `popup`, and `splash`, generate one `9:16` template-safe vertical master instead of generating separate `3:4`, `1:1`, and `9:16` backgrounds. A no-title `标准文字套版` source also uses this mode, including when it requests only one vertical output. A direct no-main-copy `9:16` input uses this mode for any requested vertical-resource combination. This mode is limited to those three vertical templates; it does not apply to horizontal resources.
+Every AI-generated request containing `feed`, `popup`, or `splash` uses one `9:16` template-safe vertical master from the splash composition. A direct no-main-copy `9:16` input also uses this mode for any requested vertical-resource combination. This mode is limited to those three vertical templates; it does not apply to horizontal resources.
 
 1. Generate one master candidate at `9:16`, with the source title/subtitle cleared and a common, continuous copy-safe area large enough for every requested final crop.
 2. Measure the complete core-subject group's vertical center in the master image and record it as normalized `verticalMaster.subjectCenterY` (`0` is the top; `1` is the bottom).
@@ -230,7 +224,7 @@ Optional per-resource crop-position override:
 }
 ```
 
-Prefer automatic `verticalMaster.subjectCenterY` for a vertical-master combination. Use per-resource `backgroundPosition` only to override that crop deliberately; only use command-line `--background-position` for single-resource test renders.
+Prefer automatic `verticalMaster.subjectCenterY` for every vertical master. Use per-resource `backgroundPosition` only to override that crop deliberately; only use command-line `--background-position` for single-resource test renders.
 
 竖版母图组合优先使用 `verticalMaster.subjectCenterY` 自动裁切；只有明确需要覆盖时，才按资源位在 `material.json` 写 `backgroundPosition`。只有单资源位测试渲染时，才使用命令行 `--background-position`。
 

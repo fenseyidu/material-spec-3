@@ -29,9 +29,13 @@ work image lower area   effective material area (~4.6:1)
 - Anchor the subject near the lower display band of the effective material area. Keep its highest meaningful point clearly below the horizontal boundary.
 - When the mother image intentionally crops a long, diagonal core subject at an edge, retain at least one continuous endpoint extending beyond a left, right, or lower edge of the effective material area. Do not crop it across the upper blank-buffer boundary or into `copySafe`.
 
+### Continuous-background recovery
+
+The white buffer is only a first-generation layout scaffold. If any core subject crosses its boundary, the targeted regeneration must fill that upper area with a continuous extension of the scene background and keep the complete main visual inside the intended final crop. During Pre-render QA, visually measure the complete main visual group as normalized `left,top,right,bottom` bounds. The preprocessor then uses the group's vertical center to place the final crop; it must not infer a crop from a white boundary on this recovery path.
+
 ## Pre-render QA
 
-For `channel`, Pre-render QA is advisory. Record PASS/FAIL observations before preprocessing, but do not block the channel preprocessor, `material.json`, renderer, or delivery solely because of a FAIL.
+For `channel`, a core subject crossing the first-generation white-buffer boundary requires one targeted regeneration using continuous-background recovery. After that retry, any remaining composition issue is recorded as `RENDER_WITH_OBSERVATION` and proceeds to renderer; use `ADVISORY_FAIL` only for a non-retry channel observation.
 
 PASS observations include:
 
@@ -49,11 +53,11 @@ FAIL observations include:
 - The subject crosses into `copySafe` or pollutes title/subtitle readability.
 - The right-side subject is pushed to the far right or leaves the banner unbalanced.
 
-Default fast flow: a FAIL may trigger one targeted regeneration when useful, but it never blocks preprocessing or rendering. Deliver the rendered result with any remaining QA observations.
+Default fast flow: after the one continuous-background retry, a remaining split or natural edge crop proceeds to renderer with `RENDER_WITH_OBSERVATION` and a concrete observation.
 
 ## Renderer Preparation
 
-After Pre-render QA, whether PASS or FAIL, use the channel preprocessor. Do not mechanically extract a fixed lower band or send the full buffered work image to renderer.
+For a passing white-buffer candidate, use the channel preprocessor. Do not mechanically extract a fixed lower band or send the full buffered work image to renderer.
 
 ```bash
 python3 <skill-dir>/scripts/prepare-channel-input.py \
@@ -63,3 +67,13 @@ python3 <skill-dir>/scripts/prepare-channel-input.py \
 ```
 
 The preprocessor chooses the final `1041 x 225` crop from the sustained full-width blank/content boundary, not from the first isolated non-white pixel, and centers the detected right-side core subject group vertically whenever the available crop range permits. It rejects a channel candidate whose main visual protrudes above that boundary. Its output is the only acceptable non-direct channel input for renderer.
+
+For a continuous-background recovery candidate, pass the QA-measured bounds instead. This path centers the final crop on the main visual vertically. Any remaining edge crop is recorded by QA rather than rejected by the preprocessor:
+
+```bash
+python3 <skill-dir>/scripts/prepare-channel-input.py \
+  --template channel \
+  --main-visual-bounds <left,top,right,bottom> \
+  --input <generated-recovery-candidate.png> \
+  --out material-spec-input/<task-folder>/channel.png
+```

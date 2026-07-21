@@ -8,30 +8,24 @@ Use this file when the requested resource is `popup` or `弹窗`.
 - Final output: `popup_885x990.png`
 - Final size: `885 x 990`
 - Renderer input filename: `popup.png`
-- Fixed standalone generation canvas: `1:1`
+- Generation source: shared `9:16` vertical master
 - Text rendering, typography, CTA drawing, rounded corners, and final technical validation are renderer-owned.
 
 ## Generation Layout
 
-- For a standalone popup task, always generate exactly at `1:1`; do not follow the reference image's aspect ratio. Apply the naturally blended title/subtitle safety zone and CTA avoidance zone defined below before placing the centered main visual block.
-- For a vertical-master combination with at least one of `feed` or `splash`, or for a no-title `标准文字套版` source, do not generate a separate popup background. Use the shared `9:16` master and judge this popup's layout against its derived final renderer crop.
+- Every popup task uses the shared `9:16` vertical master from the splash rules. Judge this popup's layout against its derived final renderer crop.
 
-## Initial Generation Prompt
+## Derived-Crop Rules
 
-Use this compact prompt for the first generated candidate, replacing the core-subject placeholder with the current request's actual core subject:
+The `9:16` master is generated with the splash prompt and its vertical-master reuse sentence. Use this popup rule for derived-crop QA and targeted regeneration only.
 
 ```text
-需求：将参考图重新排版成一张 1:1 比例的图片。
-构图：<核心主体>组成核心主体组，核心主体组置于画面中水平居中、垂直居中，四周留白均衡。
-顶部 0%–28% 为全宽文案安全区：保持连续、低纹理、低反光，并提供与已判定文字颜色相适配的稳定背景承托；沿用原图的环境色、光影、景深与空间层次，以柔和渐变自然过渡并融入主体区。CTA 按钮可叠加在主体上；底部 92.12%–100% 为按钮下边缘安全带：不得出现主体、关键结构、可读文字或品牌识别信息。
-若参考母图中长条斜向核心主体有意延伸至画布外，保留至少一个连续端部出画的构图；不得为完整展示而缩小或收回主体，仍须避开文案安全区和按钮下边缘安全带。
-删除范围：仅原图主标题、副标题及其紧邻的色带、底板或装饰；保留产品、标签、Logo、价格、贴纸和场景内其他文字及其载体。
-不要烘焙标题、副标题、CTA 或按钮。不要新增人物、产品、道具、装饰、Logo、可读文字或水印。
+派生的弹窗裁切顶部 `0%–28%` 为全宽文案安全区：保持连续、低纹理、低反光，并提供与已判定文字颜色相适配的稳定背景承托。CTA 按钮可叠加在主体上；底部 `92.12%–100%` 为按钮下边缘安全带：不得出现主体、关键结构、可读文字或品牌识别信息。
 ```
 
-The attached mother image carries the scene content and visual style. The five prompt lines above provide the composition and template-safety instructions for the first-generation candidate.
+The attached mother image carries the scene content and visual style. The splash prompt provides the composition and template-safety instructions for the generated master.
 
-For a targeted regeneration, use the failed candidate as the image input and compose the single correction sentence from `references/shared/visual-qa.md`.
+For a targeted regeneration, use the failed `9:16` master as the image input and compose the single correction sentence from `references/shared/visual-qa.md`.
 
 - The core subject group is horizontally and vertically centered inside the main visual block, with its visual center aligned to both centerlines and balanced breathing room on all sides.
   核心主体组在主视觉区内水平、垂直居中，视觉中心对齐主视觉区的水平与垂直中线，四周留白相对均衡。
@@ -47,7 +41,7 @@ For `qaSchemaVersion: 4`, complete the `centeringMeasurement` and pixel-based `f
 
 PASS only when:
 
-- The candidate follows the written `1:1` composition rules.
+- The derived final crop follows the written popup composition rules.
 - The core subject group is horizontally and vertically centered inside the main visual block, with its visual center aligned to both centerlines and balanced breathing room on all sides.
   核心主体组在主视觉区内水平、垂直居中，视觉中心对齐主视觉区的水平与垂直中线，四周留白相对均衡。
 - The target composition remains within `x=0–885`, `y=277–912`.
@@ -66,7 +60,7 @@ FAIL when:
 - The CTA button is unreadable after overlaying the main visual.
 - The candidate drifts from the reference mother image's subject, category, or scene logic.
 
-Default fast flow: try at most one targeted regeneration for layout/readability issues. If the usable retry still fails, render with `RENDER_WITH_OBSERVATION` and state the concrete remaining issue. A targeted retry uses the failed candidate as its image input and the single correction sentence from `references/shared/visual-qa.md`; that sentence includes `主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；画面中其他元素不变。`.
+Default fast flow: try at most one targeted regeneration for layout/readability issues. If the usable retry still fails, render with `RENDER_WITH_OBSERVATION` and state the concrete remaining issue. A targeted retry uses the failed candidate as its image input and the single correction sentence from `references/shared/visual-qa.md`; that sentence includes `主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；保持主体组原有构图关系不变：画面中其他元素不变。`.
 
 ## Renderer Preparation
 

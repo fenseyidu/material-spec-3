@@ -14,7 +14,7 @@ Use this file when the requested resource is `splash` or `开屏`.
 ## Generation Layout
 
 - On the AI image-generation path, always generate exactly at `9:16`; do not follow the reference image's aspect ratio. Apply the naturally blended title/subtitle safety zone defined below before placing the centered main visual block.
-- When at least one of `feed` or `popup` is requested with splash, this is the one shared vertical master. Extend its continuous copy-safe area and validate the derived feed/popup crops before rendering; do not generate additional feed/popup backgrounds.
+- This is the shared vertical master for every request containing `feed`, `popup`, or `splash`. Extend its continuous copy-safe area and validate every requested derived feed/popup crop before rendering.
 
 ## Prompt Text
 
@@ -27,7 +27,7 @@ When assembling the prompt, use these sentences in order, replacing placeholders
 若参考母图中长条斜向核心主体有意延伸至画布外，保留至少一个连续端部出画的构图；不得为完整展示而缩小或收回主体，仍须避开文案安全区。
 ```
 
-For a vertical-master combination, append this sentence to the splash prompt before generation:
+For every vertical request, append this sentence to the splash prompt before generation:
 
 ```text
 竖版母图复用：为 feed、弹窗和开屏的最终裁切共同保留连续、低纹理、低反光的文案承托区；核心主体组完整落在各裁切结果共同可用的主视觉区域，底部为 feed、弹窗的按钮下边缘安全带保留干净背景。
@@ -58,7 +58,7 @@ FAIL when:
 - The top `16%–35%` title/subtitle safety area does not maintain a continuous, naturally transitioned copy-safe background.
 - The candidate drifts from the reference mother image's subject, category, or scene logic.
 
-Default fast flow: try at most one targeted regeneration for layout/readability issues. If the usable retry still fails, render with `RENDER_WITH_OBSERVATION` and state the concrete remaining issue. Derive the `35%` top anchor, horizontal correction, and any required scale from the actual candidate using `references/shared/visual-qa.md`; name the actual core subject instead of writing `核心主体组`. The targeted prompt must anchor the highest meaningful point at approximately `35%` from the top and require horizontal centering; it must not repeat the `16%–35%` safety interval or pair the anchor with `垂直居中`. Append `主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；画面中其他元素不变。` Do not add `保持商品不变` as a QA check or repeat the full generation prompt.
+Default fast flow: try at most one targeted regeneration for layout/readability issues. If the usable retry still fails, render with `RENDER_WITH_OBSERVATION` and state the concrete remaining issue. Derive the `35%` top anchor, horizontal correction, and any required scale from the actual candidate using `references/shared/visual-qa.md`; name the actual core subject instead of writing `核心主体组`. The targeted prompt must anchor the highest meaningful point at approximately `35%` from the top and require horizontal centering; it must not repeat the `16%–35%` safety interval or pair the anchor with `垂直居中`. 当实际核心主体为台球杆 / pool cue，且母图存在有意出画时，定向重生提示必须保留母图同一连续端部出画；不得缩小或将台球杆完全收回画内，仅可在保持出画的前提下移动主体以避开文案安全区。 Append `主体与其承托物的接触关系、遮挡关系、接触阴影和受力逻辑必须保持；保持商品不变；保持主体组原有构图关系不变：画面中其他元素不变。` Do not add `保持商品不变` as a QA check or repeat the full generation prompt.
 
 ## Renderer Preparation
 
