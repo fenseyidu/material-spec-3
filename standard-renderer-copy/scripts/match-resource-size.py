@@ -21,6 +21,7 @@ RATIO_ROUTES = (
     ("splash", 9 / 16, "9:16"),
 )
 RATIO_TOLERANCE = 0.01
+PUSH_RATIO = 1035 / 390
 
 
 parser = argparse.ArgumentParser()
@@ -45,6 +46,10 @@ for resource, expected_ratio, label in RATIO_ROUTES:
 resource = EXACT_SIZES.get(size)
 if resource:
     print(f"MATCH {resource} {width}x{height} exact")
+    raise SystemExit(0)
+
+if math.isclose(ratio, PUSH_RATIO, rel_tol=RATIO_TOLERANCE):
+    print(f"MATCH push {width}x{height} ratio=2.65:1")
     raise SystemExit(0)
 
 print(f"NO_MATCH {width}x{height}")
