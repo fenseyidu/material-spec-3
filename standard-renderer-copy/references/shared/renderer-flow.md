@@ -202,6 +202,22 @@ If a requested resource template does not display CTA, still store `cta` in `mat
 
 Apply this section only to `feed` and `popup`. The renderer derives CTA colors from the final `titleColor`; do not write `buttonBackground` or `buttonTextColor` to `material.json` and do not accept CTA-color overrides.
 
+## Subtitle Highlight Colors
+
+For a subtitle that needs partial color changes, resolve each requested color to a hex value sampled from the provided reference image, then set `style.subtitleHighlights` in `material.json`. The renderer lays out the subtitle once and draws each colored text segment directly, so highlighted glyphs are not painted over a base-color glyph.
+
+```json
+{
+  "style": {
+    "subtitleColor": "#111111",
+    "subtitleHighlights": [
+      { "text": "50%", "color": "#E94B4B" },
+      { "text": "88", "color": "#E94B4B" }
+    ]
+  }
+}
+```
+
 - A deep/black title (`#111111`, `#000000`, or equivalent shorthand) produces the same deep/black button background and white CTA text.
 - A white title (`#FFFFFF` or shorthand) produces the same white button background and deep `#111111` CTA text.
 - The resolved title color for these resources must be deep/black or white. Do not use a colored title, because it would violate the black/white CTA rule.

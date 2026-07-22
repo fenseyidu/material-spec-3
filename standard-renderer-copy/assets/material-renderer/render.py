@@ -652,6 +652,39 @@ def draw_text(draw, text, x, y, width, height, size, align, color, family, defau
     draw.text((round(left), round(top)), text, font=selected, fill=color)
 
 
+def draw_text_with_highlights(draw, text, x, y, width, height, size, align, color, family, highlights, default=DEFAULT_FONT):
+    if highlights is None:
+        draw_text(draw, text, x, y, width, height, size, align, color, family, default)
+        return
+    if not isinstance(highlights, list):
+        raise ValueError("subtitleHighlights must be a list of text/color entries.")
+    selected = fit(draw, text, width, size, family, default)
+    box = draw.textbbox((0, 0), text, font=selected)
+    text_width = box[2] - box[0]
+    left = x if align == "left" else x + (width - text_width) / 2
+    top = y + (height - (box[3] - box[1])) / 2 - box[1]
+    colors = [color] * len(text)
+    for item in highlights:
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str) or not item["text"]:
+            raise ValueError("Each subtitleHighlights entry must contain a non-empty text string.")
+        target, highlight_color = item["text"], rgba(item.get("color"), "#111111")
+        start = text.find(target)
+        if start < 0:
+            raise ValueError(f"subtitleHighlights text is not present in the subtitle: {item['text']}")
+        while start >= 0:
+            colors[start:start + len(target)] = [highlight_color] * len(target)
+            start = text.find(target, start + len(target))
+    index, cursor = 0, left
+    while index < len(text):
+        end = index + 1
+        while end < len(text) and colors[end] == colors[index]:
+            end += 1
+        segment = text[index:end]
+        draw.text((round(cursor), round(top)), segment, font=selected, fill=colors[index])
+        cursor += draw.textlength(segment, font=selected)
+        index = end
+
+
 def cta_colors(title_color):
     value = str(title_color or "#111111").strip().lower()
     if value in {"#111", "#111111", "#000", "#000000"}:
@@ -705,7 +738,7 @@ def render(name, args, config, input_dir, output):
     title_width, title_height, title_size = template["title"]
     subtitle_width, subtitle_height, subtitle_size = template["subtitle"]
     draw_text(draw, copy["title"], x, y, title_width, title_height, title_size, align, rgba(style.get("titleColor"), "#111111"), style.get("titleFont", ""), TITLE_FONT)
-    draw_text(draw, copy["subtitle"], x, y + title_height + gap, subtitle_width if align == "left" else copy_width, subtitle_height, subtitle_size, align, rgba(style.get("subtitleColor"), "#111111"), style.get("subtitleFont", ""))
+    draw_text_with_highlights(draw, copy["subtitle"], x, y + title_height + gap, subtitle_width if align == "left" else copy_width, subtitle_height, subtitle_size, align, rgba(style.get("subtitleColor"), "#111111"), style.get("subtitleFont", ""), style.get("subtitleHighlights"))
     if template.get("button"):
         draw_button(image, template["button"], copy["cta"], style)
     file = output / f"{template['output']}.png"
