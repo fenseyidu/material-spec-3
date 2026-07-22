@@ -47,7 +47,10 @@ CENTERING_TEMPLATES = ("feed", "popup", "splash")
 CENTERING_TOLERANCE = {"x": 0.05, "y": 0.07}
 FIT_TEMPLATES = ("feed", "popup")
 FIT_TOLERANCE = 0.03
-POOL_CUE_DIAGONAL = "poolCueDiagonal"
+POOL_CUE_RIGHT_BIASED = "poolCueRightBiased"
+POOL_CUE_RIGHT_BIAS_RANGE = (0.58, 0.76)
+POOL_CUE_TOP_ANCHOR_TOLERANCE = 0.03
+EDGE_CROP_EDGES = {"top", "right", "bottom", "left"}
 RETRY_TOP_ANCHORS = {"feed": 26, "popup": 28}
 FIT_QA_ACCEPTANCE_BOUNDS = {
     "feed": (0, 168, 503, 575),
@@ -221,17 +224,110 @@ def normalized_bounds(value, label):
     return left, top, right, bottom
 
 
-def uses_pool_cue_diagonal(record):
+def uses_pool_cue_right_bias(record, template_name=None):
     mode = record.get("compositionMode")
     if mode is None:
         return False
-    if mode != POOL_CUE_DIAGONAL:
-        raise ValueError(f"preRenderQA compositionMode must be {POOL_CUE_DIAGONAL!r} when supplied.")
-    measurement = record.get("centeringMeasurement")
+    if mode != POOL_CUE_RIGHT_BIASED:
+        raise ValueError(f"preRenderQA compositionMode must be {POOL_CUE_RIGHT_BIASED!r} when supplied.")
+    if template_name is not None and template_name not in CENTERING_TEMPLATES:
+        raise ValueError(f"preRenderQA.{template_name}.compositionMode {POOL_CUE_RIGHT_BIASED!r} is only supported for feed, popup, and splash.")
+    measurement = record.get("poolCueMeasurement")
     core_subject = measurement.get("coreSubject", "") if isinstance(measurement, dict) else ""
     if not isinstance(core_subject, str) or not re.search(r"台球杆|pool cue|billiard cue", core_subject, re.IGNORECASE):
-        raise ValueError(f"preRenderQA compositionMode {POOL_CUE_DIAGONAL!r} requires a coreSubject that explicitly names a pool cue.")
+        raise ValueError(f"preRenderQA compositionMode {POOL_CUE_RIGHT_BIASED!r} requires poolCueMeasurement.coreSubject to explicitly name a pool cue.")
     return True
+
+
+def reference_edge_crops(config):
+    """Validate the optional reference-image edge-crop contract once per task."""
+    value = config.get("referenceEdgeCrops")
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not value:
+        raise ValueError("referenceEdgeCrops must be a non-empty list when supplied.")
+    contracts = []
+    subjects = set()
+    for index, item in enumerate(value):
+        label = f"referenceEdgeCrops[{index}]"
+        if not isinstance(item, dict):
+            raise ValueError(f"{label} must be an object.")
+        subject = item.get("subject")
+        if not isinstance(subject, str) or not subject.strip():
+            raise ValueError(f"{label}.subject must name the actual edge-cropped subject.")
+        if subject in subjects:
+            raise ValueError(f"{label}.subject must not duplicate another referenceEdgeCrops subject.")
+        edges = item.get("exitEdges")
+        if not isinstance(edges, list) or not edges or any(edge not in EDGE_CROP_EDGES for edge in edges) or len(set(edges)) != len(edges):
+            raise ValueError(f"{label}.exitEdges must be a non-empty list of unique canvas edges: top, right, bottom, left.")
+        direction = item.get("exitDirection")
+        if not isinstance(direction, str) or not direction.strip():
+            raise ValueError(f"{label}.exitDirection must describe the reference exit direction.")
+        if item.get("mustRemainContinuous") is not True:
+            raise ValueError(f"{label}.mustRemainContinuous must be true.")
+        if item.get("preserveRelativeOcclusion") is not True:
+            raise ValueError(f"{label}.preserveRelativeOcclusion must be true.")
+        subjects.add(subject)
+        contracts.append({"subject": subject, "exitEdges": tuple(edges), "exitDirection": direction})
+    return tuple(contracts)
+
+
+def validate_reference_edge_crop_measurement(template_name, record, contracts):
+    if not contracts:
+        return
+    label = f"preRenderQA.{template_name}.referenceEdgeCropMeasurement"
+    measurement = record.get("referenceEdgeCropMeasurement")
+    checks = record.get("checks", {})
+    check_value = checks.get("referenceEdgeCropsPreserved") if isinstance(checks, dict) else None
+    is_observation = record.get("status") == "RENDER_WITH_OBSERVATION"
+    if type(check_value) is not bool:
+        raise ValueError(f"preRenderQA.{template_name}.checks.referenceEdgeCropsPreserved must be boolean when referenceEdgeCrops is declared.")
+    if not isinstance(measurement, dict) or type(measurement.get("preserved")) is not bool:
+        raise ValueError(f"{label}.preserved must be boolean when referenceEdgeCrops is declared.")
+    if measurement["preserved"] is not check_value:
+        raise ValueError(f"{label}.preserved must match checks.referenceEdgeCropsPreserved.")
+    if check_value is False and not is_observation:
+        raise ValueError(f"{label}.preserved may be false only for RENDER_WITH_OBSERVATION.")
+    items = measurement.get("items")
+    if not isinstance(items, list) or len(items) != len(contracts):
+        raise ValueError(f"{label}.items must record every declared reference edge crop.")
+    observed = {}
+    for index, item in enumerate(items):
+        item_label = f"{label}.items[{index}]"
+        if not isinstance(item, dict):
+            raise ValueError(f"{item_label} must be an object.")
+        subject = item.get("subject")
+        edges = item.get("exitEdges")
+        direction = item.get("exitDirection")
+        if not isinstance(subject, str) or not isinstance(edges, list) or not isinstance(direction, str):
+            raise ValueError(f"{item_label} must include subject, exitEdges, and exitDirection.")
+        if any(edge not in EDGE_CROP_EDGES for edge in edges) or len(set(edges)) != len(edges):
+            raise ValueError(f"{item_label}.exitEdges must be unique canvas edges: top, right, bottom, left.")
+        if not direction.strip():
+            raise ValueError(f"{item_label}.exitDirection must not be empty.")
+        if type(item.get("continuous")) is not bool or type(item.get("relativeOcclusionPreserved")) is not bool:
+            raise ValueError(f"{item_label} must record boolean continuity and relative occlusion results.")
+        if subject in observed:
+            raise ValueError(f"{item_label}.subject must not be duplicated.")
+        observed[subject] = {
+            "exitEdges": tuple(edges),
+            "exitDirection": direction,
+            "continuous": item["continuous"],
+            "relativeOcclusionPreserved": item["relativeOcclusionPreserved"],
+        }
+    expected = {item["subject"]: {"exitEdges": item["exitEdges"], "exitDirection": item["exitDirection"]} for item in contracts}
+    if set(observed) != set(expected):
+        raise ValueError(f"{label}.items must record the declared edge-cropped subjects exactly once.")
+    if check_value is True:
+        for subject, expected_item in expected.items():
+            actual = observed[subject]
+            if (
+                actual["exitEdges"] != expected_item["exitEdges"]
+                or actual["exitDirection"] != expected_item["exitDirection"]
+                or actual["continuous"] is not True
+                or actual["relativeOcclusionPreserved"] is not True
+            ):
+                raise ValueError(f"{label}.items must exactly preserve the declared exit contract when preserved is true.")
 
 
 def validate_centering_measurement(template_name, record, schema_version):
@@ -261,6 +357,29 @@ def validate_centering_measurement(template_name, record, schema_version):
         raise ValueError(f"preRenderQA.{template_name}.checks.mainVisualCentered must be {verdict} from centeringMeasurement.")
 
 
+def validate_pool_cue_right_bias_measurement(template_name, record):
+    measurement = record.get("poolCueMeasurement")
+    label = f"preRenderQA.{template_name}.poolCueMeasurement"
+    if not isinstance(measurement, dict):
+        raise ValueError(f"{label} is required for poolCueRightBiased.")
+    core_subject = measurement.get("coreSubject")
+    if not isinstance(core_subject, str) or not re.search(r"台球杆|pool cue|billiard cue", core_subject, re.IGNORECASE):
+        raise ValueError(f"{label}.coreSubject must explicitly name the pool cue.")
+    left, top, right, bottom = normalized_bounds(measurement.get("subjectBounds"), f"{label}.subjectBounds")
+    center = measurement.get("subjectCenter")
+    if not isinstance(center, dict) or any(type(center.get(key)) not in (int, float) for key in ("x", "y")):
+        raise ValueError(f"{label}.subjectCenter must contain numeric x and y values.")
+    center_x, center_y = float(center["x"]), float(center["y"])
+    if not all(math.isfinite(number) for number in (center_x, center_y)):
+        raise ValueError(f"{label}.subjectCenter must use finite values.")
+    if abs(center_x - (left + right) / 2) > 0.01 or abs(center_y - (top + bottom) / 2) > 0.01:
+        raise ValueError(f"{label}.subjectCenter must match the center of subjectBounds.")
+    right_biased = POOL_CUE_RIGHT_BIAS_RANGE[0] <= center_x <= POOL_CUE_RIGHT_BIAS_RANGE[1]
+    if record["checks"].get("poolCueRightBiased") is not right_biased:
+        verdict = "true" if right_biased else "false"
+        raise ValueError(f"preRenderQA.{template_name}.checks.poolCueRightBiased must be {verdict} from poolCueMeasurement.")
+
+
 def pixel_bounds(value, label, width, height):
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be an object.")
@@ -273,41 +392,57 @@ def pixel_bounds(value, label, width, height):
     return left, top, right, bottom
 
 
-def validate_fit_measurement(template_name, record):
+def pool_cue_title_gap_allowed(template_name, record, config):
+    """The opt-in title-gap exception is limited to the documented cue mode."""
+    scoped = config.get(template_name, {})
+    return (
+        template_name in FIT_TEMPLATES
+        and record.get("compositionMode") == POOL_CUE_RIGHT_BIASED
+        and scoped.get("poolCueTitleGapAllowance") is True
+    )
+
+
+def fit_acceptance_bounds(template_name, record, config):
+    left, top, right, bottom = FIT_QA_ACCEPTANCE_BOUNDS[template_name]
+    if pool_cue_title_gap_allowed(template_name, record, config):
+        # The cue's diagonal head may use upper non-text space. Actual title/subtitle
+        # non-overlap remains an explicit visual QA check below.
+        return left, 0, right, bottom
+    return left, top, right, bottom
+
+
+def validate_fit_measurement(template_name, record, config):
     measurement = record.get("fitMeasurement")
     label = f"preRenderQA.{template_name}.fitMeasurement"
     if not isinstance(measurement, dict):
         raise ValueError(f"{label} is required for qaSchemaVersion 3.")
     template = TEMPLATES[template_name]
     left, top, right, bottom = pixel_bounds(measurement.get("subjectBoundsPx"), f"{label}.subjectBoundsPx", template["width"], template["height"])
-    safe_left, safe_top, safe_right, safe_bottom = FIT_QA_ACCEPTANCE_BOUNDS[template_name]
+    safe_left, safe_top, safe_right, safe_bottom = fit_acceptance_bounds(template_name, record, config)
     subject_width, subject_height = right - left, bottom - top
     safe_width, safe_height = safe_right - safe_left, safe_bottom - safe_top
     scale = min(1.0, safe_width / subject_width, safe_height / subject_height)
-    preserve_pool_cue_scale = uses_pool_cue_diagonal(record)
-    expected_scale_percent = 100 if preserve_pool_cue_scale else (100 - math.ceil((1 - scale) * 100) if scale < 1 else 100)
+    expected_scale_percent = 100 - math.ceil((1 - scale) * 100) if scale < 1 else 100
     scale_percent = measurement.get("requiredScalePercent")
     if type(scale_percent) is not int or not 0 < scale_percent <= 100:
         raise ValueError(f"{label}.requiredScalePercent must be an integer between 1 and 100.")
     if scale_percent != expected_scale_percent:
         raise ValueError(f"{label}.requiredScalePercent must be {expected_scale_percent} from subjectBoundsPx and the button-lower-edge safe area.")
-    fits = True if preserve_pool_cue_scale else scale >= 1 - FIT_TOLERANCE
+    fits = scale >= 1 - FIT_TOLERANCE
     if record["checks"].get("mainVisualFits") is not fits:
         verdict = "true" if fits else "false"
         raise ValueError(f"preRenderQA.{template_name}.checks.mainVisualFits must be {verdict} from fitMeasurement.")
 
 
-def expected_scale_percent(template_name, bounds, preserve_pool_cue_scale=False):
+def expected_scale_percent(template_name, bounds, record, config):
     template = TEMPLATES[template_name]
     left, top, right, bottom = pixel_bounds(bounds, f"{template_name}.subjectBoundsPx", template["width"], template["height"])
-    safe_left, safe_top, safe_right, safe_bottom = FIT_QA_ACCEPTANCE_BOUNDS[template_name]
+    safe_left, safe_top, safe_right, safe_bottom = fit_acceptance_bounds(template_name, record, config)
     scale = min(1.0, (safe_right - safe_left) / (right - left), (safe_bottom - safe_top) / (bottom - top))
-    if preserve_pool_cue_scale:
-        return 100, (left, top, right, bottom)
     return 100 - math.ceil((1 - scale) * 100) if scale < 1 else 100, (left, top, right, bottom)
 
 
-def validate_retry_plan(template_name, record):
+def validate_retry_plan(template_name, record, config, require_edge_crop_clause=False):
     plan = record.get("retryPlan")
     label = f"preRenderQA.{template_name}.retryPlan"
     if not isinstance(plan, dict):
@@ -328,8 +463,8 @@ def validate_retry_plan(template_name, record):
     source = plan.get("sourceMeasurement")
     if not isinstance(source, dict):
         raise ValueError(f"{label}.sourceMeasurement must be an object.")
-    preserve_pool_cue_scale = uses_pool_cue_diagonal(record)
-    scale_percent, (left, top, right, bottom) = expected_scale_percent(template_name, source.get("subjectBoundsPx"), preserve_pool_cue_scale)
+    right_biased = uses_pool_cue_right_bias(record, template_name)
+    scale_percent, (left, top, right, bottom) = expected_scale_percent(template_name, source.get("subjectBoundsPx"), record, config)
     if plan.get("targetScalePercent") != scale_percent:
         raise ValueError(f"{label}.targetScalePercent must be {scale_percent} from sourceMeasurement.subjectBoundsPx.")
     block_left, block_top, block_right, block_bottom = main_visual_bounds(template_name, 4)
@@ -340,14 +475,27 @@ def validate_retry_plan(template_name, record):
     expected_actions = []
     if scale_percent < 97:
         expected_actions.append(f"scale:{scale_percent}")
-    if center_x < target_x - (block_right - block_left) * CENTERING_TOLERANCE["x"]:
-        expected_actions.append("right")
-    elif center_x > target_x + (block_right - block_left) * CENTERING_TOLERANCE["x"]:
-        expected_actions.append("left")
-    if center_y < target_y - (block_bottom - block_top) * CENTERING_TOLERANCE["y"]:
-        expected_actions.append("down")
-    elif center_y > target_y + (block_bottom - block_top) * CENTERING_TOLERANCE["y"]:
-        expected_actions.append("up")
+    if right_biased:
+        right_min, right_max = (ratio * template["width"] for ratio in POOL_CUE_RIGHT_BIAS_RANGE)
+        if center_x < right_min:
+            expected_actions.append("right")
+        elif center_x > right_max:
+            expected_actions.append("left")
+        top_anchor = RETRY_TOP_ANCHORS[template_name] / 100 * template["height"]
+        top_tolerance = POOL_CUE_TOP_ANCHOR_TOLERANCE * template["height"]
+        if top < top_anchor - top_tolerance:
+            expected_actions.append("down")
+        elif top > top_anchor + top_tolerance:
+            expected_actions.append("up")
+    else:
+        if center_x < target_x - (block_right - block_left) * CENTERING_TOLERANCE["x"]:
+            expected_actions.append("right")
+        elif center_x > target_x + (block_right - block_left) * CENTERING_TOLERANCE["x"]:
+            expected_actions.append("left")
+        if center_y < target_y - (block_bottom - block_top) * CENTERING_TOLERANCE["y"]:
+            expected_actions.append("down")
+        elif center_y > target_y + (block_bottom - block_top) * CENTERING_TOLERANCE["y"]:
+            expected_actions.append("up")
     if plan.get("actions") != expected_actions:
         raise ValueError(f"{label}.actions must be {expected_actions!r} from sourceMeasurement.")
     prompt = plan.get("prompt")
@@ -360,6 +508,8 @@ def validate_retry_plan(template_name, record):
         expected_text = f"缩小至原尺寸的{scale_percent}%" if action.startswith("scale:") else action_text[action]
         if expected_text not in prompt:
             raise ValueError(f"{label}.prompt is missing the required action: {expected_text}.")
+    if require_edge_crop_clause and "参考图边缘出画关系" not in prompt:
+        raise ValueError(f"{label}.prompt must preserve the reference edge-crop contract.")
 
 
 def validate_pre_render_qa(config, names):
@@ -369,6 +519,7 @@ def validate_pre_render_qa(config, names):
         schema_version = 0
     if not isinstance(records, dict):
         raise ValueError("Missing preRenderQA records. Complete Pre-render QA before rendering.")
+    edge_crop_contracts = reference_edge_crops(config)
     for name in names:
         record = records.get(name)
         if not isinstance(record, dict):
@@ -380,16 +531,37 @@ def validate_pre_render_qa(config, names):
             raise ValueError(f"preRenderQA.{name}.checks must be an object.")
         if not isinstance(evidence, str) or not evidence.strip():
             raise ValueError(f"preRenderQA.{name}.evidence must describe the QA observation.")
-        required = QA_CHECKS[name] + (("mainVisualFits",) if schema_version >= 3 and name in FIT_TEMPLATES else ())
+        right_biased = uses_pool_cue_right_bias(record, name)
+        if right_biased:
+            cue_subject = record["poolCueMeasurement"]["coreSubject"]
+            cue_contracts = [item for item in edge_crop_contracts if item["subject"] == cue_subject]
+            if len(cue_contracts) != 1 or "right" not in cue_contracts[0]["exitEdges"] or "右上" not in cue_contracts[0]["exitDirection"]:
+                raise ValueError(f"preRenderQA.{name}.compositionMode {POOL_CUE_RIGHT_BIASED!r} requires a matching referenceEdgeCrops contract for the same pool cue exiting toward the upper right.")
+        base_checks = list(QA_CHECKS[name])
+        if right_biased:
+            base_checks[base_checks.index("mainVisualCentered")] = "poolCueRightBiased"
+        title_gap_allowed = pool_cue_title_gap_allowed(name, record, config)
+        required = tuple(base_checks) + (("mainVisualFits",) if schema_version >= 3 and name in FIT_TEMPLATES else ()) + (("poolCueTitleGapClear",) if title_gap_allowed else ()) + (("referenceEdgeCropsPreserved",) if edge_crop_contracts else ())
         missing = [key for key in required if key not in checks]
         if missing:
             raise ValueError(f"preRenderQA.{name}.checks is missing: {', '.join(missing)}.")
+        if edge_crop_contracts and type(checks.get("referenceEdgeCropsPreserved")) is not bool:
+            raise ValueError(f"preRenderQA.{name}.checks.referenceEdgeCropsPreserved must be boolean when referenceEdgeCrops is declared.")
         if schema_version >= 2 and name in CENTERING_TEMPLATES:
-            validate_centering_measurement(name, record, schema_version)
+            if right_biased:
+                validate_pool_cue_right_bias_measurement(name, record)
+            else:
+                validate_centering_measurement(name, record, schema_version)
+        validate_reference_edge_crop_measurement(name, record, edge_crop_contracts)
         if schema_version >= 3 and name in FIT_TEMPLATES:
-            validate_fit_measurement(name, record)
+            validate_fit_measurement(name, record, config)
         if schema_version >= 4 and name in FIT_TEMPLATES and record.get("targetedRetryCount") == 1:
-            validate_retry_plan(name, record)
+            validate_retry_plan(
+                name,
+                record,
+                config,
+                require_edge_crop_clause=bool(edge_crop_contracts),
+            )
         if status == "PASS":
             failed = [key for key in required if checks[key] is not True]
             if failed:

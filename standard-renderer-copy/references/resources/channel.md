@@ -27,7 +27,7 @@ work image lower area   effective material area (~4.6:1)
 - The right-side subject should move inward toward the copySafe/mainVisual boundary while staying out of `copySafe`.
 - Do not let the subject stick to the far right edge, and do not leave a large empty gap inside the right-side main visual area.
 - Anchor the subject near the lower display band of the effective material area. Keep its highest meaningful point clearly below the horizontal boundary.
-- When the mother image intentionally crops a long, diagonal core subject at an edge, retain at least one continuous endpoint extending beyond a left, right, or lower edge of the effective material area. Do not crop it across the upper blank-buffer boundary or into `copySafe`.
+- When `referenceEdgeCrops` is declared, preserve every declared subject's exact exit edge(s), direction, continuity, and relative occlusion in the effective material area. Do not pull it inside to create a margin, extend unseen product, crop it across the upper blank-buffer boundary, or let it enter `copySafe`.
 
 ### Continuous-background recovery
 

@@ -71,6 +71,8 @@ Every AI-generated request containing `feed`, `popup`, or `splash` uses one `9:1
 3. Map the same file to every requested vertical resource. The renderer derives each resource's crop position so that the measured master subject center aligns with that resource's canonical main-visual center.
 4. Run Pre-render QA separately against each derived final crop. For `feed` and `popup`, continue to enforce the button-lower-edge safety band and the pixel fit gate.
 
+When `material.json.referenceEdgeCrops` is declared, renderer does not outpaint, extend, or locally fabricate the off-canvas product. It derives the normal cover crop, then requires each requested resource's QA record to confirm the same declared exit edge(s), exit direction, continuity, and relative occlusion. `verticalMaster.subjectCenterY` and any `backgroundPosition` override may improve vertical placement only if the resulting crop still passes that contract; they must not be used to pull a declared exited subject back inside the final frame.
+
 ```json
 {
   "verticalMaster": { "subjectCenterY": 0.675 },
@@ -96,8 +98,9 @@ The renderer refuses to create PNGs until every requested resource has a complet
 - `RENDER_WITH_OBSERVATION` requires `targetedRetryCount: 1`, at least one failed required check, and a concrete `observation`. The renderer prints that observation, and final delivery must repeat it.
 - `channel` preserves its advisory workflow: `status` may be `PASS` or `ADVISORY_FAIL`. An `ADVISORY_FAIL` still requires every check key and a concrete `evidence` observation.
 - A missing record, missing check, failed check under `PASS`, empty evidence, or an invalid retry/observation record stops rendering before any output group is created.
-- For `feed` or `popup` whose actual primary product is explicitly a 台球杆 / pool cue, set that resource record's `compositionMode` to `poolCueDiagonal`. The renderer then accepts `fitMeasurement.requiredScalePercent: 100` and a retry plan without a scale action; this exemption does not relax title-area or CTA safety checks.
-- New task folders must set `qaSchemaVersion` to `4`. Under schema version `4`, `feed`, `popup`, and `splash` require a valid `centeringMeasurement` using the canonical resource-safe bounds; `feed` and `popup` also require a valid pixel-based `fitMeasurement` and `mainVisualFits` check. A `feed` or `popup` record with `targetedRetryCount: 1` additionally requires its `retry-plan.<resource>.json` audit copied into a validated `retryPlan`: the failed-candidate bounds must derive the recorded scale and directions, and the saved prompt must contain every required action. Schema versions `2` and `3` remain rerenderable with their existing centering gate.
+- When top-level `referenceEdgeCrops` is declared, every requested resource must include `referenceEdgeCropsPreserved` and a `referenceEdgeCropMeasurement`. `PASS` requires `referenceEdgeCropsPreserved: true` plus an exact match for every declared subject's exit edge(s), direction, continuity, and relative occlusion. After exactly one targeted retry, `RENDER_WITH_OBSERVATION` may set the check to `false`, record the actual observed exit state, and state the remaining edge-crop issue.
+- `compositionMode: "poolCueRightBiased"` is the only 台球杆-specific QA exception. It is limited to feed, popup, and splash where the approved composition requires a 台球杆从右上自然出画. It replaces `mainVisualCentered` with `poolCueRightBiased`, validated from `poolCueMeasurement`. Only `feed` or `popup` may additionally set their own `poolCueTitleGapAllowance: true`; this permits the cue head in upper non-text space only when `poolCueTitleGapClear` is true. It never relaxes text-glyph readability, the CTA lower-edge safety band, product fidelity, or the edge-crop contract.
+- New task folders must set `qaSchemaVersion` to `4`. Under schema version `4`, `feed`, `popup`, and `splash` require a valid `centeringMeasurement` using the canonical resource-safe bounds, except `poolCueRightBiased`, which requires `poolCueMeasurement`; `feed` and `popup` also require a valid pixel-based `fitMeasurement` and `mainVisualFits` check in either mode. A `feed` or `popup` record with `targetedRetryCount: 1` additionally requires its `retry-plan.<resource>.json` audit copied into a validated `retryPlan`: the failed-candidate bounds must derive the recorded scale and directions, and the saved prompt must contain every required action. Schema versions `2` and `3` remain rerenderable with their existing centering gate.
 
 Required checks:
 
@@ -106,8 +109,8 @@ Required checks:
 | `channel` | `subjectFidelity`, `copySafeAreaClear`, `cropBufferUsable`, `noBakedTemplateCopy` |
 | `categoryBanner` | `subjectFidelity`, `copySafeAreaClear`, `bottomAreaClear`, `noBakedTemplateCopy` |
 | `push` | `subjectFidelity`, `copySafeAreaClear`, `noBakedTemplateCopy` |
-| `feed`, `popup` | `subjectFidelity`, `mainVisualCentered`, `mainVisualFits` (schema `3`), `copySafeAreaClear`, `bottomAreaClear`, `noBakedTemplateCopy` |
-| `splash` | `subjectFidelity`, `mainVisualCentered`, `copySafeAreaClear`, `noBakedTemplateCopy` |
+| `feed`, `popup` | `subjectFidelity`, `mainVisualCentered`, `mainVisualFits` (schema `3`), `copySafeAreaClear`, `bottomAreaClear`, `noBakedTemplateCopy`, plus `referenceEdgeCropsPreserved` when `referenceEdgeCrops` is declared. Under `poolCueRightBiased`, replace only `mainVisualCentered` with `poolCueRightBiased`; when that resource explicitly enables `poolCueTitleGapAllowance`, also require `poolCueTitleGapClear`. |
+| `splash` | `subjectFidelity`, `mainVisualCentered`, `copySafeAreaClear`, `noBakedTemplateCopy`, plus `referenceEdgeCropsPreserved` when `referenceEdgeCrops` is declared. Under `poolCueRightBiased`, replace only `mainVisualCentered` with `poolCueRightBiased`. |
 
 Example:
 

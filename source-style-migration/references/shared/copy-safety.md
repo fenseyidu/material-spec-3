@@ -30,7 +30,18 @@ When the reference image has an obvious main campaign title and subtitle:
 - For centered card or vertical resources (`feed`, `popup`, `splash`, `miniProgramShare`), place the migrated main title and subtitle in the prescribed title/subtitle area with horizontal center alignment.
 - Preserve the source wording and intent; add or rewrite copy only when the user explicitly provides it.
 - Preserve title wording and apply this exact instruction during migration: `保留图中的字体样式`. Reset the spatial layout with the target resource's title margin, vertical position, alignment, scale, and title-to-subject gap.
-- If OCR/visual reading is uncertain, state the uncertainty and ask the user to confirm the title/subtitle before generation.
+- Ask for copy confirmation before generation only when visual reading is uncertain, a possible main title spans multiple visual lines, or the main-title/subtitle boundary has more than one reasonable interpretation. Use:
+
+```text
+识别到：
+主标题：{mainTitle}
+副标题：{subtitle}
+保留文字：{preservedText}
+
+请确认或直接修改。
+```
+
+Wait for the user's reply before creating task data or generating. Do not ask when the title/subtitle hierarchy is unambiguous.
 
 If the source title is hard to fit as one row, first reduce size, adjust tracking, use the full prescribed horizontal title width, and preserve readable proportions. Stop and ask the user before generation if a readable one-row title appears impossible.
 

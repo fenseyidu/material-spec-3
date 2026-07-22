@@ -21,6 +21,15 @@ generated candidate
 
 Run after each generated background and before crop, `material.json`, renderer input, or renderer.
 
+## Cue-Only Product Exception (Source-Style Migration Only)
+
+Apply this exception only inside the `source-style-migration` workflow. A qualifying cue-only product reference has billiard cue(s) as its only commercial subject and shows no person, hand, or arm holding a cue. Incidental scene props such as billiard balls, a billiard table, chalk, books, or a desktop do not disqualify it.
+
+- Run the full Pre-render QA exactly as normal, including every required position measurement and all copy, template, and CTA checks.
+- If the candidate is usable and not `BLOCKED`, never perform a QA-triggered targeted correction, restart, or any other regeneration for this exception. Record every failed or non-ideal result as `台球杆纯商品图观察项`, then continue to renderer.
+- Do not downgrade `BLOCKED`: no usable candidate, an unreliable required measurement, or an input that cannot be prepared remains a hard stop before renderer.
+- This exception does not alter Render QA. Fix renderer-only issues, such as CTA contrast or clipping, without image regeneration.
+
 Read:
 
 - `references/shared/copy-safety.md`
@@ -39,7 +48,7 @@ mainVisual: bbox, targetCenterX, targetCenterY, deltaX, deltaY
 - Define `mainVisualBBox` around only the commercially meaningful subject group required by the matching resource file. Include every visible component needed to recognize that group, such as a person and the key product they hold; exclude scenery, weak shadows, empty ground/sky, and non-critical decoration.
 - Normalize the resource guide's declared main-visual rectangle to the candidate and calculate the main-visual target center with `Measured Position Correction`.
 - If either required record is absent, incomplete, or cannot be measured reliably, set Pre-render QA to `BLOCKED`. Do not crop, create `material.json`, prepare renderer input, or run renderer. Obtain a clearer measurement or ask the user how to define the subject group.
-- A measured positional deviation is a normal Pre-render QA failure: perform the one default targeted correction, then remeasure both required records. If the candidate and renderer input are usable after that retry, record any remaining measured deviation as an observation or attention note and continue to renderer. `BLOCKED` is never downgraded to an observation.
+- A measured positional deviation is a normal Pre-render QA failure: perform the one default targeted correction, then remeasure both required records. For a qualifying cue-only product reference, use the Cue-Only Product Exception instead: record the deviation as `台球杆纯商品图观察项` and do not regenerate. If the candidate and renderer input are usable after that retry or exception handling, record any remaining measured deviation as an observation or attention note and continue to renderer. `BLOCKED` is never downgraded to an observation.
 
 ## Spatial Layout Authority Check
 
@@ -142,7 +151,7 @@ A title/subtitle group or subject that crosses the numeric guide boundary is not
 
 In that case, mark Pre-render QA as `PASS with observation` and continue to renderer. Record the concrete observation, for example: `标题组纵向延展较大，但只影响非关键背景；主视觉位置、主体识别和 CTA 区仍可用。`
 
-A title Y outside the allowed range always triggers its one directional retry even when the composition otherwise looks acceptable. For other layout deviations, trigger targeted regeneration only when the generated background itself creates a real visual problem: it covers a face/product/screen, weakens or shrinks the subject, makes the title/main visual relationship confusing, clips or splits copy, duplicates title positions, or exposes template structure. Future CTA overlap is an observation rather than a regeneration trigger.
+A title Y outside the allowed range always triggers its one directional retry even when the composition otherwise looks acceptable, except for a qualifying cue-only product reference under the Cue-Only Product Exception. For other layout deviations, trigger targeted regeneration only when the generated background itself creates a real visual problem: it covers a face/product/screen, weakens or shrinks the subject, makes the title/main visual relationship confusing, clips or splits copy, duplicates title positions, or exposes template structure. Future CTA overlap is an observation rather than a regeneration trigger.
 
 ## Oversized Title Group Correction
 
@@ -214,11 +223,9 @@ PASS only when:
 
 FAIL means:
 
-- Do not crop, create `material.json`, or run renderer until the one default targeted retry and the second Pre-render QA are complete.
-- Write the concrete visual/copy failure, including whether the problem actually affects the real main visual or CTA area.
-- Regenerate once with a targeted correction by default.
-- Run the full Pre-render QA again.
-- Record every remaining deviation as an observation or attention note and continue to renderer without waiting for confirmation.
+- For a qualifying cue-only product reference under the Cue-Only Product Exception, do not regenerate. Record the concrete issue as `台球杆纯商品图观察项` and continue to renderer when the candidate is usable and not `BLOCKED`.
+- For every non-qualifying reference, do not crop, create `material.json`, or run renderer until the one default targeted retry and the second Pre-render QA are complete.
+- For every non-qualifying reference, write the concrete visual/copy failure, including whether the problem actually affects the real main visual or CTA area; regenerate once with a targeted correction by default; run the full Pre-render QA again; then record every remaining deviation as an observation or attention note and continue to renderer without waiting for confirmation.
 
 Only stop before renderer when there is no usable generated candidate, the renderer input cannot be prepared, or Pre-render QA is `BLOCKED` because a required title/main-visual position record is missing or unreliable. Those cases must be reported as hard blockers.
 

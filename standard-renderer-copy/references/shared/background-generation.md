@@ -6,7 +6,7 @@ Use this file for every request with a provided reference image before generatin
 
 - The user-provided image is the reference mother image, not a loose mood board.
 - Preserve the reference image's subject identity, category, lighting, color relationship, material, and style unless the user explicitly asks for another strategy. The target resource's written composition rules control the subject's final position, scale, crop, and whitespace; do not preserve the source coordinates when they conflict.
-- When the mother image intentionally crops a long, diagonal core product or prop at a canvas edge, preserve that intentional edge-crop character in the generated composition. Keep at least one continuous end of the same core subject extending beyond an output edge; do not shrink or pull the subject fully into frame merely to show it complete. The target resource's title, CTA, crop-buffer, and recognizability requirements remain hard constraints; adapt the cropped edge or endpoint only when needed to satisfy them.
+- When the mother image intentionally crops a core product or prop at one or more canvas edges, create a `referenceEdgeCrops` contract before generation. A user may explicitly select only some of those edges; otherwise declare every deliberate source exit edge. For every declared subject, preserve the contract's exit edge(s), exit direction, continuity, and relative occlusion relationship in the generated composition; this applies to every such subject, not a fixed number or product type. Do not pull a declared edge-cropped subject fully into frame, create an in-frame margin at its declared exit edge, or replace an exit with a blunt complete endpoint merely to show it whole. The target resource's title, CTA, crop-buffer, and recognizability requirements remain hard constraints. If scale or position needs correction, transform the declared subject around its declared edge-exit relationship rather than inventing missing product content or changing where it leaves the canvas.
 - Do not directly crop, resize, mask, locally clean up, or renderer-fit the original reference image as the final background unless the user explicitly says `直接裁切原图套版`, `不生图，只裁切`, `允许本地兜底`, or equivalent.
 - Do not redraw the whole scene, switch to illustration/icon/flat style, or add core subjects, people, products, props, or decorations not present in the reference image. When the reference contains an effective environmental background, do not replace it with a new background.
 - Treat a transparent cutout, a flat single-color background, or an isolated product on black/white with no discernible environment as `无有效环境背景`.
@@ -29,7 +29,7 @@ Build prompts in this order:
 标题/副标题颜色：【用户指定色，或按 copy-safety.md 判定的自动色】
 文案区承托：【与已判定的深色字/浅色字匹配的中浅色/中深色、低纹理区域】
 背景表达：【默认原图 / 商品展台底 / 极简光影底 / 纯色渐变底】
-构图裁切：【若母图存在长条斜向核心主体的有意出画，保留至少一个连续端部出画；否则不适用】
+构图裁切：【若母图存在核心主体的有意出画，逐一保持参考图中的出画边缘、方向、连续性与相对遮挡关系；否则不适用】
 
 【通用固定规则】
 Use the rules in this file and `references/shared/copy-safety.md`.
@@ -65,7 +65,7 @@ Assemble the first-generation prompt in this order:
 模板标题、副标题与 CTA 由后续 renderer 呈现。
 ```
 
-When the conditional edge-crop rule applies, include its Chinese instruction in the assembled generation prompt. It is a composition constraint, not a request to add, remove, or deform the product.
+When the conditional edge-crop rule applies, include its Chinese instruction in the assembled generation prompt: `保持参考图边缘出画关系：<subject>继续从<exitEdges>沿<exitDirection>方向自然出画，连续性与相对遮挡关系不变；不得将其收回画内、留出内边距或补画缺失产品。` It is a composition constraint, not a request to add, remove, extend, or deform the product.
 
 The matching resource file remains the source of truth for composition and safety zones. For every request containing `feed`, `popup`, or `splash`, use the splash `9:16` master prompt as the complete first-generation prompt body, together with the vertical-master reuse sentence. The attached mother image carries the scene identity, and the renderer presents template copy later.
 

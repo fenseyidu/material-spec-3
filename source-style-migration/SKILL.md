@@ -80,6 +80,7 @@ Agent must explicitly state which resource file and shared files were applied be
 - Before the first local PNG render, check renderer dependencies with `python3 scripts/setup-check.py`. The renderer uses Python/Pillow plus the parent package's shared button font; it does not require Node.js, npm, Chrome, or Playwright.
 - Default QA is fast QA: Pre-render QA after generation and Render QA after renderer. Do not generate report artifacts by default. Only read `references/shared/reporting-flow.md` and create reports when the user explicitly asks to generate a report.
 - `qa-report.md` and `qa-report.json` are not default required deliverables. Do not require, read, summarize, or deliver them unless the user explicitly asks for a QA report.
+- 台球杆纯商品图例外仅适用于本 `原图迁移` 流程：当参考母图的商业主体只有台球杆商品，且没有人物、手或手臂持杆时，仍须完整执行并记录 Pre-render QA，但任何可用候选图的 QA 偏差都不得触发定向重生、重启生成或第二次生图。将偏差标为 `台球杆纯商品图观察项` 后继续 renderer。桌球、球桌、巧粉、书籍等场景道具不影响该例外；无可用候选图、无法可靠完成必填测量等 `BLOCKED` 情况仍为硬阻塞。
 - Default targeted retry count is one. Each resource-declared title-group Y anchor is the ideal position. Use the matching resource file's Pre-render QA tolerance when it declares one; otherwise use `ideal Y ± 3% of the relevant canvas height`. Use the title-group top for top-anchor resources and the title-group vertical center for center-anchor resources. Title-group height remains unconstrained. Before any renderer input is prepared, Pre-render QA must record the title-group `top`, `targetY`, and `deltaY`, plus the main-visual `bbox`, `targetCenterX,Y`, and `deltaX,Y`. If any required position cannot be measured, mark QA `BLOCKED`; do not create `material.json` or run renderer. After the one retry, remeasure all required fields, record every remaining deviation as an observation or attention note, and continue to renderer without waiting for confirmation when the candidate and renderer input remain usable.
 - Keep measured position and scale deltas in QA notes. Use measured vertical or scale corrections when they provide a reliable target; when a resource declares a percentage-based title anchor, use that target-state wording in the retry prompt while retaining the measurements in QA notes. A resource may declare a coordinated title/main-visual retry: when the title group moves upward, move the complete subject group upward with it. When the main visual is visibly small, enlarge it by `5%-12%` (default about `10%`), preserve its natural aspect ratio, and do not force a tall or narrow subject to fill a wide guide area. Do not describe a scale above `12%` as light. Express main-visual horizontal corrections as an end state rather than a left/right displacement: center the complete subject group in the main-visual area with balanced side whitespace, then keep the other elements unchanged. Keep horizontal pixel/percentage deltas in QA notes only. Remeasure the corrected candidate's title group and main visual before deciding PASS or recording observations.
 - Current-task prompt optimization may be specific. Skill-document updates must be generic and should be proposed before writing unless the user explicitly asks to update the skill.
@@ -93,6 +94,7 @@ When the user sends a material request with `资源位` and a provided/reference
    - `按钮`
    - optional extra notes
    Identify the source main title/subtitle from the reference image and migrate them inside the generated image according to `references/shared/copy-safety.md`, unless the user explicitly overrides the copy outside the template.
+   If `copy-safety.md` requires copy confirmation, ask for it before creating a task folder or generating an image.
 2. Read `references/shared/naming-rules.md`.
 3. Read the matching `references/resources/<resource>.md` for every requested resource.
 4. Create a new task-specific folder name from timestamp/theme/resources under the current project/work directory, not inside the skill directory.
@@ -114,13 +116,12 @@ When the user sends a material request with `资源位` and a provided/reference
    - ask whether to retry generation
 9. After each generated background, read `references/shared/visual-qa.md` and run Pre-render QA using the matching resource file.
 10. If Pre-render QA fails:
-    - do not crop
-    - do not create `material.json`
-    - do not run renderer
-    - regenerate once with a targeted correction by default
-    - first record the required title and main-visual position measurements; any missing measurement is `BLOCKED` and remains a hard stop before renderer
-    - for title-group Y or main-visual vertical/scale failures, issue a concise correction toward the guide anchor; for percentage-based title anchors, state the target position rather than a pixel movement; when the title group moves upward, move the subject group upward with it; when the main visual is visibly small, limit its enlargement to `5%-12%` (default about `10%`); for main-visual horizontal centering, describe the centered end state with balanced side whitespace
-    - run the full Pre-render QA again, including all required measurements; record every remaining measured deviation as an observation or attention note, then continue to renderer without waiting for confirmation
+    - for a qualifying 台球杆纯商品图, do not perform any targeted retry or generation restart; record the measured deviations as `台球杆纯商品图观察项` and continue to renderer when the candidate is usable and not `BLOCKED`
+    - otherwise, do not crop, create `material.json`, or run renderer before the retry
+    - otherwise, regenerate once with a targeted correction by default
+    - otherwise, first record the required title and main-visual position measurements; any missing measurement is `BLOCKED` and remains a hard stop before renderer
+    - otherwise, for title-group Y or main-visual vertical/scale failures, issue a concise correction toward the guide anchor; for percentage-based title anchors, state the target position rather than a pixel movement; when the title group moves upward, move the subject group upward with it; when the main visual is visibly small, limit its enlargement to `5%-12%` (default about `10%`); for main-visual horizontal centering, describe the centered end state with balanced side whitespace
+    - otherwise, run the full Pre-render QA again, including all required measurements; record every remaining measured deviation as an observation or attention note, then continue to renderer without waiting for confirmation
 11. After Pre-render QA completes, read `references/shared/renderer-flow.md`:
     - run the first-use dependency check before renderer
     - install Pillow if missing and permission is available
